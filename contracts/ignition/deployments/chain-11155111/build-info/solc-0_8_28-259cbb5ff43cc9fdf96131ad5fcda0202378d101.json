@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-259cbb5ff43cc9fdf96131ad5fcda0202378d101",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/SimpleEscrow.sol": "project/contracts/SimpleEscrow.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/SimpleEscrow.sol": {
+        "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.28;\n\n/**\n * @title SimpleEscrow\n * @notice A simple escrow contract where buyer deposits ETH and can later release to seller or refund\n * @dev Uses ReentrancyGuard pattern and state management for security\n */\ncontract SimpleEscrow {\n    // Escrow states\n    enum State {\n        AWAITING_DELIVERY,  // Funds deposited, waiting for work completion\n        COMPLETE,           // Funds released to seller\n        REFUNDED            // Funds returned to buyer\n    }\n\n    // Escrow details\n    struct Escrow {\n        address payable buyer;\n        address payable seller;\n        uint256 amount;\n        State state;\n    }\n\n    // Storage\n    mapping(uint256 => Escrow) public escrows;\n    uint256 public escrowCount;\n    \n    // Reentrancy guard\n    uint256 private locked = 1;\n\n    // Events\n    event EscrowCreated(uint256 indexed escrowId, address indexed buyer, address indexed seller, uint256 amount);\n    event FundsReleased(uint256 indexed escrowId, address indexed seller, uint256 amount);\n    event FundsRefunded(uint256 indexed escrowId, address indexed buyer, uint256 amount);\n\n    // Errors\n    error Unauthorized();\n    error InvalidState();\n    error InvalidAmount();\n    error TransferFailed();\n    error ReentrancyDetected();\n\n    // Modifiers\n    modifier nonReentrant() {\n        if (locked != 1) revert ReentrancyDetected();\n        locked = 2;\n        _;\n        locked = 1;\n    }\n\n    modifier onlyBuyer(uint256 _escrowId) {\n        if (msg.sender != escrows[_escrowId].buyer) revert Unauthorized();\n        _;\n    }\n\n    modifier inState(uint256 _escrowId, State _state) {\n        if (escrows[_escrowId].state != _state) revert InvalidState();\n        _;\n    }\n\n    /**\n     * @notice Creates a new escrow with deposited ETH\n     * @param _seller Address of the seller who will receive funds\n     * @return escrowId The ID of the newly created escrow\n     */\n    function createEscrow(address payable _seller) external payable returns (uint256) {\n        if (msg.value == 0) revert InvalidAmount();\n        if (_seller == address(0)) revert Unauthorized();\n\n        uint256 escrowId = escrowCount++;\n        \n        escrows[escrowId] = Escrow({\n            buyer: payable(msg.sender),\n            seller: _seller,\n            amount: msg.value,\n            state: State.AWAITING_DELIVERY\n        });\n\n        emit EscrowCreated(escrowId, msg.sender, _seller, msg.value);\n        \n        return escrowId;\n    }\n\n    /**\n     * @notice Releases funds to the seller (only buyer can call)\n     * @param _escrowId The ID of the escrow to release\n     */\n    function releaseFunds(uint256 _escrowId) \n        external \n        onlyBuyer(_escrowId) \n        inState(_escrowId, State.AWAITING_DELIVERY)\n        nonReentrant \n    {\n        Escrow storage escrow = escrows[_escrowId];\n        \n        // Update state before transfer (CEI pattern)\n        escrow.state = State.COMPLETE;\n        \n        uint256 amount = escrow.amount;\n        address payable seller = escrow.seller;\n\n        // Transfer funds\n        (bool success, ) = seller.call{value: amount}(\"\");\n        if (!success) revert TransferFailed();\n\n        emit FundsReleased(_escrowId, seller, amount);\n    }\n\n    /**\n     * @notice Refunds deposited funds to the buyer (only buyer can call)\n     * @param _escrowId The ID of the escrow to refund\n     */\n    function refund(uint256 _escrowId) \n        external \n        onlyBuyer(_escrowId) \n        inState(_escrowId, State.AWAITING_DELIVERY)\n        nonReentrant \n    {\n        Escrow storage escrow = escrows[_escrowId];\n        \n        // Update state before transfer (CEI pattern)\n        escrow.state = State.REFUNDED;\n        \n        uint256 amount = escrow.amount;\n        address payable buyer = escrow.buyer;\n\n        // Transfer funds\n        (bool success, ) = buyer.call{value: amount}(\"\");\n        if (!success) revert TransferFailed();\n\n        emit FundsRefunded(_escrowId, buyer, amount);\n    }\n\n    /**\n     * @notice Gets full escrow details\n     * @param _escrowId The ID of the escrow\n     * @return buyer, seller, amount, state\n     */\n    function getEscrow(uint256 _escrowId) \n        external \n        view \n        returns (address, address, uint256, State) \n    {\n        Escrow memory escrow = escrows[_escrowId];\n        return (escrow.buyer, escrow.seller, escrow.amount, escrow.state);\n    }\n}"
+      }
+    }
+  }
+}

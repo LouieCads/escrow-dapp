@@ -10,7 +10,7 @@ import { simpleEscrowAbi } from './simpleEscrow.abi';
 // For local development (Hardhat), default to localhost address
 // In production, this should be set via PUBLIC_ESCROW_CONTRACT_ADDRESS
 export const ESCROW_CONTRACT_ADDRESS = (import.meta.env.PUBLIC_ESCROW_CONTRACT_ADDRESS ||
-	'0x5FbDB2315678afecb367f032d93F642f64180aa3') as Address;
+	'0x3262F03e92953E22F6550D50F137d48804Ee32A5') as Address;
 
 // Export the ABI
 export { simpleEscrowAbi as ESCROW_CONTRACT_ABI };
